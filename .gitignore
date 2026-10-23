@@ -1,0 +1,9 @@
+bin/
+obj/
+build/
+.backup/
+*.user
+*.png
+*.jpg
+*.mp4
+*.mkv
