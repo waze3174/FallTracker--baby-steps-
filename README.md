@@ -17,7 +17,8 @@ a melonloader mod for baby steps that counts the pain. every fall, how many metr
   - **reports**: read your rage reports one at a time and delete them (press delete twice)
   - **options**: show / hide the stats, delete all rage reports
 - works with the gamepad on every row, even with other mods' pause menu pages installed (like the multiplayer mod)
-- with my other mod rulebook also installed, both pages open from one **MODS** button, so the pause menu doesn't run off the screen
+- with my other mods rulebook or practicetools also installed, the pages open from one **MODS** button, so the pause menu doesn't run off the screen
+- pressing F9 (flyandquicksave's save key) no longer empties every mod's pause menu page
 
 ## install
 

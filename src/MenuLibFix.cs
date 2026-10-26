@@ -38,6 +38,30 @@ static class MenuLibFix
         }
     }
 
+    // the library rebuilds every page when F9 is pressed (a debug key of its own), and the rebuilt pages can come up
+    // empty (only Close). F9 is also FlyAndQuicksave's (and PracticeTools') spot-save key, so while a library menu updates,
+    // F9 reads as not pressed
+    static int inLibUpdate;
+
+    [HarmonyPatch(typeof(MenuInjectionLibrary.InjectedMenu), nameof(MenuInjectionLibrary.InjectedMenu.OnMenuUpdate))]
+    static class NoF9Rebuild
+    {
+        static void Prefix() => inLibUpdate++;
+        static void Finalizer() => inLibUpdate--;
+    }
+
+    [HarmonyPatch(typeof(UnityEngine.Input), nameof(UnityEngine.Input.GetKeyDown), typeof(UnityEngine.KeyCode))]
+    static class F9Key
+    {
+        [HarmonyPriority(Priority.First)]
+        static bool Prefix(UnityEngine.KeyCode key, ref bool __result)
+        {
+            if (inLibUpdate == 0 || key != UnityEngine.KeyCode.F9) return true;
+            __result = false;
+            return false;
+        }
+    }
+
     static void Fix()
     {
         if (menusField == null)

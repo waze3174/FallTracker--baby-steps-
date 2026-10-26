@@ -6,7 +6,7 @@ using Il2CppTMPro;
 using MelonLoader;
 using UnityEngine;
 
-[assembly: MelonInfo(typeof(FallTracker.Core), "FallTracker", "1.2.0", "waze3174")]
+[assembly: MelonInfo(typeof(FallTracker.Core), "FallTracker", "1.2.1", "waze3174")]
 [assembly: MelonGame]
 [assembly: MelonOptionalDependencies("BabyStepsMenuLib")]
 
