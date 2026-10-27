@@ -38,6 +38,67 @@ static class MenuLibFix
         }
     }
 
+    // the library's on-screen keyboard steers itself; with a page open the fix above (and its copies in other mods)
+    // would hand the gamepad back to the page under it, and the keyboard's cursor jumps back to its first key every
+    // frame. so: note what the library chose (right after its prefix), and while any keyboard shows, put that back
+    // after every copy of the fix (lowest priority of all)
+    static Il2Cpp.MenuItemList libChoice;
+
+    [HarmonyPatch(typeof(Il2Cpp.Menu), "Update")]
+    static class NoteLibChoice
+    {
+        [HarmonyPriority(Priority.Normal - 1)]
+        static void Prefix() => libChoice = Il2Cpp.MenuItemList.active;
+    }
+
+    [HarmonyPatch(typeof(Il2Cpp.Menu), "Update")]
+    static class KeyboardKeepsGamepad
+    {
+        [HarmonyPriority(Priority.Last - 1)]
+        static void Prefix() { if (KeyboardOpen()) Il2Cpp.MenuItemList.active = libChoice; }
+    }
+
+    // the open page's library menu. a keyboard must be opened on it: the library then shrinks that page's list to
+    // the selected key while it types (and puts it back after), so the game's own up / down can't take the cursor
+    // off the keys. GetKeyboardMenu() is just the first menu any mod registered, usually not the open page's
+    internal static Il2Cpp.MenuItemList ListOf(MenuInjectionLibrary.InjectedMenu m)
+    {
+        const BindingFlags any = BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance;
+        listField ??= typeof(MenuInjectionLibrary.InjectedMenu).GetField("_submenuItemList", any);
+        return listField?.GetValue(m) as Il2Cpp.MenuItemList;
+    }
+
+    internal static MenuInjectionLibrary.InjectedMenu OpenPage()
+    {
+        const BindingFlags any = BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Static | BindingFlags.Instance;
+        menusField ??= typeof(MenuInjectionLibrary).GetField("_registeredMenus", any);
+        visibleMethod ??= typeof(MenuInjectionLibrary.InjectedMenu).GetMethod("GetSubmenuVisible", any);
+        if (menusField?.GetValue(null) is not IList menus || visibleMethod == null) return null;
+        foreach (var m in menus)
+            if (m is MenuInjectionLibrary.InjectedMenu im && (bool)visibleMethod.Invoke(im, null)) return im;
+        return null;
+    }
+
+    static PropertyInfo anyKb;
+    static bool noAnyKb;
+
+    internal static bool KeyboardOpen()
+    {
+        if (noAnyKb) return false;
+        try
+        {
+            if (anyKb == null)
+            {
+                const BindingFlags st = BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Static;
+                anyKb = typeof(MenuInjectionLibrary).GetProperty("IsAnyKeyboardVisible", st)
+                    ?? typeof(MenuInjectionLibrary.InjectedMenu).GetProperty("IsAnyKeyboardVisible", st);
+                if (anyKb == null) { noAnyKb = true; return false; }
+            }
+            return (bool)anyKb.GetValue(null);
+        }
+        catch { noAnyKb = true; return false; }
+    }
+
     // the library rebuilds every page when F9 is pressed (a debug key of its own), and the rebuilt pages can come up
     // empty (only Close). F9 is also FlyAndQuicksave's (and PracticeTools') spot-save key, so while a library menu updates,
     // F9 reads as not pressed
@@ -96,7 +157,7 @@ static class MenuLibFix
         var menu = Il2Cpp.Menu.me;
         if (menu != null && menu.titleGroup != null) menu.titleGroup.alpha = 0f;
 
-        if (kbVisible != null && (bool)kbVisible.GetValue(open)) return;   // its on-screen keyboard has the gamepad
+        if (kbVisible != null && (bool)kbVisible.GetValue(open) || KeyboardOpen()) return;   // an on-screen keyboard has the gamepad
         if (listField.GetValue(open) is Il2Cpp.MenuItemList list) Il2Cpp.MenuItemList.active = list;
     }
 

@@ -2,11 +2,12 @@ using System;
 using System.Globalization;
 using System.IO;
 using System.Text.Json;
+using HarmonyLib;
 using Il2CppTMPro;
 using MelonLoader;
 using UnityEngine;
 
-[assembly: MelonInfo(typeof(FallTracker.Core), "FallTracker", "1.2.1", "waze3174")]
+[assembly: MelonInfo(typeof(FallTracker.Core), "FallTracker", "1.2.2", "waze3174")]
 [assembly: MelonGame]
 [assembly: MelonOptionalDependencies("BabyStepsMenuLib")]
 
@@ -177,6 +178,30 @@ public class Core : MelonMod
         try { if (File.Exists(p)) slotStats = JsonSerializer.Deserialize<Stats>(File.ReadAllText(p)); }
         catch (Exception e) { LoggerInstance.Warning($"couldn't read {p}: {e.Message}"); }
         return slotStats ??= new Stats();
+    }
+
+    // the game's DELETE on the save screen: the first press asks "you sure?", the second deletes. that slot's stats go too
+    [HarmonyPatch(typeof(Il2Cpp.Menu), nameof(Il2Cpp.Menu.DeleteSaveButton))]
+    static class ResetOnDelete
+    {
+        static void Prefix(Il2Cpp.Menu __instance, int i, out bool __state)
+        {
+            var dt = __instance.deleteText;
+            __state = dt != null && i >= 0 && i < dt.Length && dt[i] != null && dt[i].text == Il2Cpp.Menu.GetTranslated(Il2Cpp.LocTerm.MSID106_YOU_SURE);
+        }
+
+        static void Postfix(int i, bool __state)
+        {
+            if (__state) Inst?.Forget(i);
+        }
+    }
+
+    void Forget(int slot)
+    {
+        foreach (var name in new[] { $"slot{slot + 1}.json", $"slot{slot + 1}-falls.csv" })
+            try { File.Delete(Path.Combine(dir, name)); } catch (Exception e) { LoggerInstance.Warning($"couldn't delete {name}: {e.Message}"); }
+        if (statsSlot == slot) { slotStats = null; statsSlot = -1; }
+        LoggerInstance.Msg($"save slot {slot + 1} deleted: its stats are reset");
     }
 
     void Save()

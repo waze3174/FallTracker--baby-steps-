@@ -10,7 +10,7 @@ a melonloader mod for baby steps that counts the pain. every fall, how many metr
   - last fall (its drop and time on the ground)
   - biggest drop
   - time on the ground
-- two columns: this session, and this save (kept per save slot, works with more save slots too)
+- two columns: this session, and this save (kept per save slot, works with more save slots too; deleting a save resets its stats)
 - teleports, loading a save and respawns don't count as drops
 - when you quit, it writes a rage report to `UserData/FallTracker/reports/`
 - a **FALL TRACKER** page in the pause menu (needs BabyStepsMenuLib, see install):
