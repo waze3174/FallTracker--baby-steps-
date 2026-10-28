@@ -9,7 +9,7 @@ using UnityEngine.UI;
 
 namespace FallTracker;
 
-// waze3174's mods (FallTracker, Rulebook) each build their own pause menu page. with more than one installed,
+// my mods (FallTracker, Rulebook, PracticeTools) each build their own pause menu page. with more than one installed,
 // their pause buttons are hidden and a single MODS button opens a page listing them, so the pause menu doesn't
 // run off the screen. the same code ships in each mod; they meet through the AppDomain (the menu library types
 // are shared)

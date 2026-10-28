@@ -50,7 +50,7 @@ static class FallMenu
         reportText = tab.AddLabel("");
         Style(reportText, 0.3f);
         if (reportText != null) { reportText.enableWordWrapping = false; reportText.richText = true; }
-        // newer / older, wrapping around (four rows a page: more runs into the Close button)
+        // newer / older, wrapping around
         Style((prevBtn = tab.AddButton("Previous report", (UnityAction)(() => { int n = ReportFiles().Length; index = n == 0 ? 0 : (index - 1 + n) % n; Refresh(); })))?.GetComponentInChildren<TextMeshProUGUI>(true), 0.5f);
         Style((nextBtn = tab.AddButton("Next report", (UnityAction)(() => { int n = ReportFiles().Length; index = n == 0 ? 0 : (index + 1) % n; Refresh(); })))?.GetComponentInChildren<TextMeshProUGUI>(true), 0.5f);
         deleteOne = tab.AddButton("Delete this report", (UnityAction)DeleteOne);
@@ -128,6 +128,8 @@ static class FallMenu
     internal static void Update()
     {
         if (!built && MenuHub.ChooserButtons.Count == 0) return;
+        var m = Il2Cpp.Menu.me;
+        if (m == null || !m.paused) return;
         bool armOne = Time.unscaledTime < confirmOneUntil, armAll = Time.unscaledTime < confirmAllUntil;
         SetText(deleteOne, armOne ? "Press again to delete" : "Delete this report");
         SetText(deleteAll, armAll ? "Press again to delete all" : "Delete all rage reports");
@@ -136,11 +138,23 @@ static class FallMenu
 
         var es = UnityEngine.EventSystems.EventSystem.current;
         var sel = es != null ? es.currentSelectedGameObject : null;
-        if (panelToggle != null) Highlight(panelToggle.GetComponentInChildren<TextMeshProUGUI>(true), panelToggle, sel);
-        foreach (var b in new[] { prevBtn, nextBtn, deleteOne, deleteAll })
-            if (b != null) Highlight(b.GetComponentInChildren<TextMeshProUGUI>(true), b, sel);
-        foreach (var b in MenuHub.ChooserButtons)
-            if (b != null) Highlight(b.GetComponentInChildren<TextMeshProUGUI>(true), b, sel);
+        Color normal = MenuColor(false), selected = MenuColor(true);
+        Highlight(panelToggle, sel, normal, selected);
+        Highlight(prevBtn, sel, normal, selected);
+        Highlight(nextBtn, sel, normal, selected);
+        Highlight(deleteOne, sel, normal, selected);
+        Highlight(deleteAll, sel, normal, selected);
+        foreach (var b in MenuHub.ChooserButtons) Highlight(b, sel, normal, selected);
+    }
+
+    // each control's text, looked up once
+    static readonly Dictionary<int, TextMeshProUGUI> texts = new();
+
+    static TextMeshProUGUI TextOf(Selectable s)
+    {
+        int id = s.GetInstanceID();
+        if (!texts.TryGetValue(id, out var t) || t == null) texts[id] = t = s.GetComponentInChildren<TextMeshProUGUI>(true);
+        return t;
     }
 
     static float nextCount; static int cachedCount;
@@ -154,17 +168,19 @@ static class FallMenu
 
     static void SetText(Button b, string text)
     {
-        var t = b != null ? b.GetComponentInChildren<TextMeshProUGUI>(true) : null;
+        var t = b != null ? TextOf(b) : null;
         if (t != null && t.text != text) t.text = text;
     }
 
     static readonly Dictionary<int, FontStyles> baseStyle = new();
 
-    static void Highlight(TextMeshProUGUI t, Selectable s, GameObject sel)
+    static void Highlight(Selectable s, GameObject sel, Color normal, Color selected)
     {
-        if (t == null || s == null || !s.gameObject.activeInHierarchy) return;
+        if (s == null || !s.gameObject.activeInHierarchy) return;
+        var t = TextOf(s);
+        if (t == null) return;
         bool on = sel != null && sel == s.gameObject;
-        t.color = MenuColor(on);
+        t.color = on ? selected : normal;
         // keep the text's own style (the game's buttons are bold caps), only add the underline
         int id = t.GetInstanceID();
         if (!baseStyle.TryGetValue(id, out var st)) { st = t.fontStyle & ~FontStyles.Underline; baseStyle[id] = st; }

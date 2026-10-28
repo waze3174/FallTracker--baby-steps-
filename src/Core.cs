@@ -7,14 +7,14 @@ using Il2CppTMPro;
 using MelonLoader;
 using UnityEngine;
 
-[assembly: MelonInfo(typeof(FallTracker.Core), "FallTracker", "1.2.2", "waze3174")]
+[assembly: MelonInfo(typeof(FallTracker.Core), "FallTracker", "1.2.3", "waze3174")]
 [assembly: MelonGame]
 [assembly: MelonOptionalDependencies("BabyStepsMenuLib")]
 
 namespace FallTracker;
 
-// counts the pain: falls, metres lost, biggest drop, time on the ground, for this session and per save slot.
-// shown on the pause menu; everything lives in UserData/FallTracker (never the game's files)
+// falls, metres lost, biggest drop and time on the ground, for this session and per save slot. shown on the pause
+// menu, kept in UserData/FallTracker (never in the game's files)
 public class Core : MelonMod
 {
     internal static Core Inst;
@@ -74,7 +74,14 @@ public class Core : MelonMod
 
     public override void OnLateUpdate()
     {
-        if (menuOk) try { HubLateUpdate(); } catch (Exception e) { LoggerInstance.Error("menu: " + e.Message); }
+        if (menuOk) try { HubLateUpdate(); } catch (Exception e) { Once("menu", e); }
+    }
+
+    // an error that comes back every frame goes in the log once
+    readonly System.Collections.Generic.HashSet<string> told = new();
+    void Once(string what, Exception e)
+    {
+        if (told.Add(what)) LoggerInstance.Error($"{what}: {e}");
     }
 
     static void HubLateUpdate() => MenuHub.LateUpdate();
@@ -99,7 +106,7 @@ public class Core : MelonMod
 
     public override void OnFixedUpdate()
     {
-        try { Watch(); } catch (Exception e) { LoggerInstance.Error("watch: " + e.Message); pm = null; }
+        try { Watch(); } catch (Exception e) { Once("watch", e); pm = null; }
     }
 
     void Watch()
@@ -141,7 +148,7 @@ public class Core : MelonMod
     {
         double secs = Time.time - fallTime;
         float moved = (ground - fallStart).magnitude;
-        if (moved > RespawnDist) { LoggerInstance.Msg($"not counted: got up {moved:F0} m from where nate went down (load / teleport)"); return; }
+        if (moved > RespawnDist) { DebugLog.Write($"not counted: got up {moved:F0} m from where nate went down (load / teleport)"); return; }
         double drop = fallStart.y - ground.y;
         session.Add(drop, secs);
         var s = SlotStats();
@@ -204,9 +211,11 @@ public class Core : MelonMod
         LoggerInstance.Msg($"save slot {slot + 1} deleted: its stats are reset");
     }
 
+    static readonly JsonSerializerOptions Indented = new() { WriteIndented = true };
+
     void Save()
     {
-        try { File.WriteAllText(Path.Combine(dir, $"slot{statsSlot + 1}.json"), JsonSerializer.Serialize(slotStats, new JsonSerializerOptions { WriteIndented = true })); }
+        try { File.WriteAllText(Path.Combine(dir, $"slot{statsSlot + 1}.json"), JsonSerializer.Serialize(slotStats, Indented)); }
         catch (Exception e) { LoggerInstance.Warning("couldn't save stats: " + e.Message); }
     }
 
@@ -226,11 +235,12 @@ public class Core : MelonMod
     // ---- pause menu panel ----
 
     TextMeshProUGUI panel;
+    string panelText;
 
     public override void OnUpdate()
     {
-        try { Panel(); } catch (Exception e) { LoggerInstance.Error("panel: " + e.Message); }
-        if (menuOk) try { MenuUpdate(); } catch (Exception e) { menuOk = false; LoggerInstance.Error("menu: " + e.Message); }
+        try { Panel(); } catch (Exception e) { Once("panel", e); }
+        if (menuOk) try { MenuUpdate(); } catch (Exception e) { menuOk = false; LoggerInstance.Error("menu: " + e); }
     }
 
     void Panel()
@@ -241,16 +251,17 @@ public class Core : MelonMod
         if (panel == null && !MakePanel(m)) return;
         panel.gameObject.SetActive(true);
         var s = SlotStats();
-        panel.text =
+        string text =
             Row("", "SESSION", "THIS SAVE") +
             Row("FALLS", session.Falls.ToString(), s.Falls.ToString()) +
             Row("METRES LOST", M(session.MetresLost), M(s.MetresLost)) +
             Row("LAST FALL", Last(session), Last(s)) +
             Row("BIGGEST DROP", M(session.BiggestDrop), M(s.BiggestDrop)) +
             Row("ON THE GROUND", T(session.SecondsDown), T(s.SecondsDown));
+        // a new text makes tmp rebuild its mesh: only when a number changed
+        if (text != panelText) panel.text = panelText = text;
     }
 
-    // the menu font isn't monospaced: columns by position
     // other mods' pages (BabyStepsMenuLib) replace the pause buttons while the game still says "main screen":
     // only show while the game's own CONTINUE button is actually visible
     static bool MainButtonsVisible(Il2Cpp.Menu m)
@@ -267,12 +278,13 @@ public class Core : MelonMod
     }
 
     static string Falls(int n) => n == 1 ? "1 fall" : $"{n} falls";
+    // the menu font isn't monospaced: columns by position
     static string Row(string name, string a, string b) => $"{name}<pos=300>{a}<pos=480>{b}\n";
     static string Last(Stats s) => s.Falls == 0 ? "-" : $"{M(s.LastDrop)}, {T(s.LastSeconds)}";
     static string M(double m) => m.ToString("0.0", CultureInfo.InvariantCulture) + " M";
     static string T(double s) => s < 60 ? $"{s:0}S" : s < 3600 ? $"{(int)(s / 60)}M {(int)(s % 60):00}S" : $"{(int)(s / 3600)}H {(int)(s % 3600 / 60):00}M";
 
-    // our own overlay canvas, left side between the game's title and its menu (a minimap mod uses the top right) (a minimap mod uses the top right)
+    // our own overlay canvas, left side between the game's title and its menu (a minimap mod uses the top right)
     bool MakePanel(Il2Cpp.Menu m)
     {
         // styled like the pause menu's own buttons (Continue), falling back to the save screen's text
@@ -292,6 +304,7 @@ public class Core : MelonMod
         var t = new GameObject("text");
         t.transform.SetParent(go.transform, false);
         panel = t.AddComponent<TextMeshProUGUI>();
+        panelText = null;
         panel.font = src.font;
         panel.fontSharedMaterial = src.fontSharedMaterial;
         panel.fontSize = 26;
